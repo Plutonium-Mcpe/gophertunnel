@@ -24,7 +24,7 @@ func (r RakNet) PingContext(ctx context.Context, address string) (response []byt
 
 // Listen ...
 func (r RakNet) Listen(address string) (NetworkListener, error) {
-	return raknet.ListenConfig{ErrorLog: r.l.With("net origin", "raknet")}.Listen(address)
+	return raknet.ListenConfig{ErrorLog: r.l.With("net origin", "raknet"), MaxMTU: 1400}.Listen(address)
 }
 
 // init registers the RakNet network.
