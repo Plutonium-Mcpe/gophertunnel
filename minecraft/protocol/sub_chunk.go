@@ -16,7 +16,8 @@ const (
 )
 
 const (
-	SubChunkResultSuccess = iota + 1
+	SubChunkResultUndefined = iota
+	SubChunkResultSuccess
 	SubChunkResultChunkNotFound
 	SubChunkResultInvalidDimension
 	SubChunkResultPlayerNotFound
@@ -45,36 +46,39 @@ type SubChunkEntry struct {
 	BlobHash uint64
 }
 
-// Marshal encodes/decodes a SubChunkEntry assuming the blob cache is enabled.
+// Marshal encodes/decodes a SubChunkEntry.
 func (x *SubChunkEntry) Marshal(r IO) {
 	Single(r, &x.Offset)
 	r.Uint8(&x.Result)
-	if x.Result != SubChunkResultSuccessAllAir {
+	hasRawPayload := x.RawPayload != nil
+	r.Bool(&hasRawPayload)
+	if hasRawPayload {
 		r.ByteSlice(&x.RawPayload)
+	} else {
+		x.RawPayload = nil
 	}
 	r.Uint8(&x.HeightMapType)
-	if x.HeightMapType == HeightMapDataHasData {
+	hasHeightMapData := x.HeightMapData != nil
+	r.Bool(&hasHeightMapData)
+	if hasHeightMapData {
 		FuncSliceOfLen(r, 256, &x.HeightMapData, r.Int8)
+	} else {
+		x.HeightMapData = nil
 	}
 	r.Uint8(&x.RenderHeightMapType)
-	if x.RenderHeightMapType == HeightMapDataHasData {
+	hasRenderHeightMapData := x.RenderHeightMapData != nil
+	r.Bool(&hasRenderHeightMapData)
+	if hasRenderHeightMapData {
 		FuncSliceOfLen(r, 256, &x.RenderHeightMapData, r.Int8)
+	} else {
+		x.RenderHeightMapData = nil
 	}
-	r.Uint64(&x.BlobHash)
-}
-
-// SubChunkEntryNoCache encodes/decodes a SubChunkEntry assuming the blob cache is not enabled.
-func SubChunkEntryNoCache(r IO, x *SubChunkEntry) {
-	Single(r, &x.Offset)
-	r.Uint8(&x.Result)
-	r.ByteSlice(&x.RawPayload)
-	r.Uint8(&x.HeightMapType)
-	if x.HeightMapType == HeightMapDataHasData {
-		FuncSliceOfLen(r, 256, &x.HeightMapData, r.Int8)
-	}
-	r.Uint8(&x.RenderHeightMapType)
-	if x.RenderHeightMapType == HeightMapDataHasData {
-		FuncSliceOfLen(r, 256, &x.RenderHeightMapData, r.Int8)
+	hasBlobHash := x.BlobHash != 0
+	r.Bool(&hasBlobHash)
+	if hasBlobHash {
+		r.Uint64(&x.BlobHash)
+	} else {
+		x.BlobHash = 0
 	}
 }
 

@@ -51,17 +51,15 @@ type IO interface {
 	EntityMetadata(x *EntityMetadata)
 	Item(x *ItemStack)
 	ItemInstance(i *ItemInstance)
-	ItemInstanceNew(i *ItemInstance)
+	StackRequestItem(x *StackRequestItem)
 	ItemDescriptorCount(i *ItemDescriptorCount)
 	StackRequestAction(x *StackRequestAction)
 	MaterialReducer(x *MaterialReducer)
-	Recipe(x *Recipe)
 	EventType(x *Event)
 	EventOrdinal(x *Event)
 	TransactionDataType(x *InventoryTransactionData)
 	PlayerInventoryAction(x *UseItemTransactionData)
 	GameRule(x *GameRule)
-	GameRuleLegacy(x *GameRule)
 	AbilityValue(x *any)
 	Bitset(x *Bitset, size int)
 	PackSetting(x *PackSetting)
@@ -153,7 +151,7 @@ const maxSliceLength = 1024
 func SliceOfLen[T any, S ~*[]T, A PtrMarshaler[T]](r IO, l uint32, x S) {
 	limit, ok := r.(sliceReader)
 	if ok {
-		limit.SliceLimit(l, maxSliceLength)
+		limit.SliceLength(l, maxSliceLength)
 		*x = make([]T, l)
 	}
 
@@ -166,7 +164,7 @@ func SliceOfLen[T any, S ~*[]T, A PtrMarshaler[T]](r IO, l uint32, x S) {
 func FuncSliceOfLen[T any, S ~*[]T](r IO, l uint32, x S, f func(*T)) {
 	limit, ok := r.(sliceReader)
 	if ok {
-		limit.SliceLimit(l, maxSliceLength)
+		limit.SliceLength(l, maxSliceLength)
 		*x = make([]T, l)
 	}
 
@@ -176,7 +174,7 @@ func FuncSliceOfLen[T any, S ~*[]T](r IO, l uint32, x S, f func(*T)) {
 }
 
 type sliceReader interface {
-	SliceLimit(value uint32, max uint32)
+	SliceLength(value uint32, max uint32)
 }
 
 // FuncIOSliceOfLen reads/writes the elements of a slice of type T with length l using func f.
@@ -228,6 +226,17 @@ func OptionalFunc[T any](r IO, x *Optional[T], f func(*T)) any {
 		f(&x.val)
 	}
 	return x
+}
+
+// DoubleOptionalFunc reads/writes an Optional[T] nested inside an always-present outer optional.
+func DoubleOptionalFunc[T any](r IO, x *Optional[T], f func(*T)) {
+	outer := true
+	r.Bool(&outer)
+	if outer {
+		OptionalFunc(r, x, f)
+	} else {
+		*x = Optional[T]{}
+	}
 }
 
 // OptionalFuncIO reads/writes an Optional[T].
