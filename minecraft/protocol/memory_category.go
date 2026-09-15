@@ -170,18 +170,6 @@ type SystemDiagnosticTimingInfo struct {
 	PercentOfTotal byte
 }
 
-// SystemCategory maps a diagnostics category name to a system index.
-type SystemCategory struct {
-	CategoryName string
-	SystemIndex  uint64
-}
-
-// Marshal encodes/decodes a SystemCategory.
-func (x *SystemCategory) Marshal(r IO) {
-	r.String(&x.CategoryName)
-	r.Uint64(&x.SystemIndex)
-}
-
 // Marshal encodes/decodes a SystemDiagnosticTimingInfo.
 func (x *SystemDiagnosticTimingInfo) Marshal(r IO) {
 	r.String(&x.DisplayName)
