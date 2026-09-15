@@ -85,7 +85,7 @@ func (x *RecipeUnlockRequirement) Marshal(r IO) {
 }
 
 // ShapelessRecipe is a recipe that has no particular shape. Its functionality is shared with the
-// RecipeShulkerBox and RecipeShapelessChemistry types.
+// UserDataShapelessRecipe and ShapelessChemistryRecipe types.
 type ShapelessRecipe struct {
 	// RecipeID is a unique ID of the recipe. This ID must be unique amongst all other types of recipes too,
 	// but its functionality is not exactly known.
@@ -109,18 +109,18 @@ type ShapelessRecipe struct {
 	// - campfire
 	Block string
 	// Priority ...
-	Priority int32
-	// UnlockRequirement is a requirement that must be met in order to unlock the recipe.
-	UnlockRequirement RecipeUnlockRequirement
+	Priority          int32
+	UnlockRequirement Optional[RecipeUnlockRequirement]
 	// RecipeNetworkID is a unique ID used to identify the recipe over network. Each recipe must have a unique
 	// network ID. Recommended is to just increment a variable for each unique recipe registered.
 	// This field must never be 0.
 	RecipeNetworkID uint32
 }
 
-// ShulkerBoxRecipe is a shapeless recipe made specifically for shulker box crafting, so that they don't lose
-// their user data when dyeing a shulker box.
-type ShulkerBoxRecipe struct {
+// UserDataShapelessRecipe is a shapeless recipe for crafting items that must retain their user data, such
+// as their contents or colour, when crafted. Vanilla uses these recipes for dyeing shulker boxes, bundles
+// and harnesses.
+type UserDataShapelessRecipe struct {
 	ShapelessRecipe
 }
 
@@ -155,9 +155,8 @@ type ShapedRecipe struct {
 	Priority int32
 	// AssumeSymmetry specifies if the recipe is symmetrical. If this is set to true, the recipe will be
 	// mirrored along the diagonal axis. This means that the recipe will be the same if rotated 180 degrees.
-	AssumeSymmetry bool
-	// UnlockRequirement is a requirement that must be met in order to unlock the recipe.
-	UnlockRequirement RecipeUnlockRequirement
+	AssumeSymmetry    bool
+	UnlockRequirement Optional[RecipeUnlockRequirement]
 	// RecipeNetworkID is a unique ID used to identify the recipe over network. Each recipe must have a unique
 	// network ID. Recommended is to just increment a variable for each unique recipe registered.
 	// This field must never be 0.
@@ -225,27 +224,27 @@ type SmithingTrimRecipe struct {
 
 // Marshal ...
 func (recipe *ShapelessRecipe) Marshal(r IO) {
-	marshalShapeless(r, recipe, true)
+	marshalShapeless(r, recipe)
 }
 
 // Marshal ...
-func (recipe *ShulkerBoxRecipe) Marshal(r IO) {
-	marshalShapeless(r, &recipe.ShapelessRecipe, true)
+func (recipe *UserDataShapelessRecipe) Marshal(r IO) {
+	marshalShapeless(r, &recipe.ShapelessRecipe)
 }
 
 // Marshal ...
 func (recipe *ShapelessChemistryRecipe) Marshal(r IO) {
-	marshalShapeless(r, &recipe.ShapelessRecipe, false)
+	marshalShapeless(r, &recipe.ShapelessRecipe)
 }
 
 // Marshal ...
 func (recipe *ShapedRecipe) Marshal(r IO) {
-	marshalShaped(r, recipe, true)
+	marshalShaped(r, recipe)
 }
 
 // Marshal ...
 func (recipe *ShapedChemistryRecipe) Marshal(r IO) {
-	marshalShaped(r, &recipe.ShapedRecipe, false)
+	marshalShaped(r, &recipe.ShapedRecipe)
 }
 
 // Marshal ...
@@ -275,15 +274,11 @@ func (recipe *SmithingTrimRecipe) Marshal(r IO) {
 	r.Varuint32(&recipe.RecipeNetworkID)
 }
 
-// marshalShaped ...
-func marshalShaped(r IO, recipe *ShapedRecipe, withRequirement bool) {
+func marshalShaped(r IO, recipe *ShapedRecipe) {
 	r.String(&recipe.RecipeID)
 	r.Varint32(&recipe.Width)
 	r.Varint32(&recipe.Height)
 	FuncSlice(r, &recipe.Input, r.ItemDescriptorCount)
-	if recipe.Width <= 0 || recipe.Height <= 0 {
-		r.InvalidValue([2]int32{recipe.Width, recipe.Height}, "shaped recipe dimensions", "must both be positive")
-	}
 	if int64(len(recipe.Input)) != int64(recipe.Width)*int64(recipe.Height) {
 		r.InvalidValue(len(recipe.Input), "shaped recipe ingredients", "must equal width multiplied by height")
 	}
@@ -292,32 +287,17 @@ func marshalShaped(r IO, recipe *ShapedRecipe, withRequirement bool) {
 	r.String(&recipe.Block)
 	r.Varint32(&recipe.Priority)
 	r.Bool(&recipe.AssumeSymmetry)
-	present := withRequirement
-	r.Bool(&present)
-	if present != withRequirement {
-		r.InvalidValue(present, "shaped recipe unlock requirement presence", "does not match recipe type")
-	}
-	if present {
-		Single(r, &recipe.UnlockRequirement)
-	}
+	OptionalMarshaler(r, &recipe.UnlockRequirement)
 	r.Varuint32(&recipe.RecipeNetworkID)
 }
 
-// marshalShapeless ...
-func marshalShapeless(r IO, recipe *ShapelessRecipe, withRequirement bool) {
+func marshalShapeless(r IO, recipe *ShapelessRecipe) {
 	r.String(&recipe.RecipeID)
 	FuncSlice(r, &recipe.Input, r.ItemDescriptorCount)
 	FuncSlice(r, &recipe.Output, r.Item)
 	r.UUID(&recipe.UUID)
 	r.String(&recipe.Block)
 	r.Varint32(&recipe.Priority)
-	present := withRequirement
-	r.Bool(&present)
-	if present != withRequirement {
-		r.InvalidValue(present, "shapeless recipe unlock requirement presence", "does not match recipe type")
-	}
-	if present {
-		Single(r, &recipe.UnlockRequirement)
-	}
+	OptionalMarshaler(r, &recipe.UnlockRequirement)
 	r.Varuint32(&recipe.RecipeNetworkID)
 }

@@ -5,7 +5,6 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-// Particle types used as data for LevelEventParticleLegacyEvent.
 const (
 	ParticleTypeUndefined = iota
 	ParticleTypeBubble

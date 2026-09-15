@@ -21,10 +21,17 @@ type MoveActorDelta struct {
 	RotationY     protocol.Optional[float32]
 	RotationYHead protocol.Optional[float32]
 
-	OnGround             bool
-	ForceMove            bool
+	// OnGround specifies whether the entity is on the ground after applying the update.
+	OnGround bool
+	// ForceMove specifies whether the client should snap the entity to its new position without interpolation.
+	ForceMove bool
+	// ForceMoveLocalEntity specifies whether the client should also snap an entity it owns locally.
 	ForceMoveLocalEntity bool
-	ForceCompletion      bool
+	// ForceCompletion specifies whether the client should complete any in-progress local movement before applying the
+	// update.
+	ForceCompletion bool
+	// Ticks is the number of ticks over which the movement should be interpolated by the client.
+	Ticks uint64
 }
 
 // ID ...
@@ -33,7 +40,7 @@ func (*MoveActorDelta) ID() uint32 {
 }
 
 func (pk *MoveActorDelta) Marshal(io protocol.IO) {
-	io.Varuint64(&pk.EntityRuntimeID)
+	io.ActorRuntimeID(&pk.EntityRuntimeID)
 	protocol.OptionalFunc(io, &pk.PositionX, io.Float32)
 	protocol.OptionalFunc(io, &pk.PositionY, io.Float32)
 	protocol.OptionalFunc(io, &pk.PositionZ, io.Float32)
@@ -44,4 +51,5 @@ func (pk *MoveActorDelta) Marshal(io protocol.IO) {
 	io.Bool(&pk.ForceMove)
 	io.Bool(&pk.ForceMoveLocalEntity)
 	io.Bool(&pk.ForceCompletion)
+	io.Varuint64(&pk.Ticks)
 }

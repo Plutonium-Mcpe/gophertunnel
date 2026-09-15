@@ -46,8 +46,7 @@ type MovePlayer struct {
 	// RiddenEntityRuntimeID is the runtime ID of the entity that the player might currently be riding. If not
 	// riding, this should be left 0.
 	RiddenEntityRuntimeID uint64
-	// TeleportData holds metadata present only when Mode is MoveModeTeleport.
-	TeleportData protocol.Optional[protocol.TeleportData]
+	TeleportData          protocol.Optional[protocol.TeleportData]
 	// Tick is the server tick at which the packet was sent. It is used in relation to CorrectPlayerMovePrediction.
 	Tick uint64
 }
@@ -58,23 +57,14 @@ func (*MovePlayer) ID() uint32 {
 }
 
 func (pk *MovePlayer) Marshal(io protocol.IO) {
-	io.Varuint64(&pk.EntityRuntimeID)
+	io.ActorRuntimeID(&pk.EntityRuntimeID)
 	io.Vec3(&pk.Position)
 	io.Float32(&pk.Pitch)
 	io.Float32(&pk.Yaw)
 	io.Float32(&pk.HeadYaw)
 	io.Uint8(&pk.Mode)
 	io.Bool(&pk.OnGround)
-	io.Varuint64(&pk.RiddenEntityRuntimeID)
-	if _, writing := io.(*protocol.Writer); writing {
-		if pk.Mode == MoveModeTeleport {
-			if _, ok := pk.TeleportData.Value(); !ok {
-				pk.TeleportData = protocol.Option(protocol.TeleportData{})
-			}
-		} else {
-			pk.TeleportData = protocol.Optional[protocol.TeleportData]{}
-		}
-	}
+	io.ActorRuntimeID(&pk.RiddenEntityRuntimeID)
 	protocol.OptionalMarshaler(io, &pk.TeleportData)
 	io.Varuint64(&pk.Tick)
 }

@@ -5,8 +5,6 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-const PlayerAuthInputBitsetSize = 66
-
 const (
 	InputFlagAscend = iota
 	InputFlagDescend
@@ -74,6 +72,9 @@ const (
 	InputFlagSneakPressedRaw
 	InputFlagSneakCurrentRaw
 	InputFlagInternalUpdate
+
+	// InputFlagCount is the number of supported PlayerAuthInput flags.
+	InputFlagCount
 )
 
 const (
@@ -174,7 +175,7 @@ func (pk *PlayerAuthInput) Marshal(io protocol.IO) {
 	io.Vec3(&pk.Position)
 	io.Vec2(&pk.MoveVector)
 	io.Float32(&pk.HeadYaw)
-	protocol.InputFlagList(io, &pk.InputData, PlayerAuthInputBitsetSize)
+	protocol.InputFlagList(io, &pk.InputData, InputFlagCount)
 	io.Varuint32(&pk.InputMode)
 	io.Varuint32(&pk.PlayMode)
 	io.Varint32(&pk.InteractionModel)
@@ -182,15 +183,15 @@ func (pk *PlayerAuthInput) Marshal(io protocol.IO) {
 	io.Float32(&pk.InteractYaw)
 	io.Varuint64(&pk.Tick)
 	io.Vec3(&pk.Delta)
-	protocol.DoubleOptionalFunc(io, &pk.ItemInteractionData, io.PlayerInventoryAction)
-	protocol.DoubleOptionalFunc(io, &pk.ItemStackRequest, func(x *protocol.ItemStackRequest) {
+	protocol.OptionalFunc(io, &pk.ItemInteractionData, io.PlayerInventoryAction)
+	protocol.OptionalFunc(io, &pk.ItemStackRequest, func(x *protocol.ItemStackRequest) {
 		x.Marshal(io)
 	})
-	protocol.DoubleOptionalFunc(io, &pk.BlockActions, func(x *[]protocol.PlayerBlockAction) {
+	protocol.OptionalFunc(io, &pk.BlockActions, func(x *[]protocol.PlayerBlockAction) {
 		protocol.Slice(io, x)
 	})
-	protocol.DoubleOptionalFunc(io, &pk.VehicleRotation, io.Vec2)
-	protocol.DoubleOptionalFunc(io, &pk.ClientPredictedVehicle, io.Varint64)
+	protocol.OptionalFunc(io, &pk.VehicleRotation, io.Vec2)
+	protocol.OptionalFunc(io, &pk.ClientPredictedVehicle, io.ActorUniqueID)
 	io.Vec2(&pk.AnalogueMoveVector)
 	io.Vec3(&pk.CameraOrientation)
 	io.Vec2(&pk.RawMoveVector)

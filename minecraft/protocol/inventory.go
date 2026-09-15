@@ -26,9 +26,9 @@ type InventoryAction struct {
 	SourceType uint32
 	// WindowID is the ID of the window that the client has opened. The window ID is not set if the SourceType
 	// is InventoryActionSourceWorld.
-	WindowID int8
+	WindowID Optional[int8]
 	// SourceFlags is a combination of flags that is only set if the SourceType is InventoryActionSourceWorld.
-	SourceFlags uint32
+	SourceFlags Optional[uint32]
 	// InventorySlot is the slot in which the action took place. Each action only describes the change of item
 	// in a single slot.
 	InventorySlot uint32
@@ -43,32 +43,8 @@ type InventoryAction struct {
 // Marshal encodes/decodes an InventoryAction.
 func (x *InventoryAction) Marshal(r IO) {
 	r.Varuint32(&x.SourceType)
-	present := true
-	r.Bool(&present)
-	hasContainerID := x.SourceType == InventoryActionSourceContainer || x.SourceType == InventoryActionSourceTODO
-	if present {
-		r.Bool(&hasContainerID)
-		if hasContainerID {
-			r.Int8(&x.WindowID)
-		} else {
-			x.WindowID = 0
-		}
-	} else {
-		x.WindowID = 0
-	}
-	present = true
-	r.Bool(&present)
-	hasFlags := x.SourceType == InventoryActionSourceWorld
-	if present {
-		r.Bool(&hasFlags)
-		if hasFlags {
-			r.Varuint32(&x.SourceFlags)
-		} else {
-			x.SourceFlags = 0
-		}
-	} else {
-		x.SourceFlags = 0
-	}
+	OptionalFunc(r, &x.WindowID, r.Int8)
+	OptionalFunc(r, &x.SourceFlags, r.Varuint32)
 	r.Varuint32(&x.InventorySlot)
 	r.ItemInstance(&x.OldItem)
 	r.ItemInstance(&x.NewItem)
@@ -157,6 +133,11 @@ const (
 	ClientCooldownStateOn
 )
 
+const (
+	HandSlotMainHand = iota
+	HandSlotOffHand
+)
+
 // UseItemTransactionData represents an inventory transaction data object sent when the client uses an item on
 // a block.
 type UseItemTransactionData struct {
@@ -170,7 +151,7 @@ type UseItemTransactionData struct {
 	// LegacySetItemSlots are only present if the LegacyRequestID is non-zero. These item slots inform the
 	// server of the slots that were changed during the inventory transaction, and the server should send
 	// back an ItemStackResponse packet with these slots present in it. (Or false with no slots, if rejected.)
-	LegacySetItemSlots []LegacySetItemSlot
+	LegacySetItemSlots Optional[[]LegacySetItemSlot]
 	// Actions is a list of actions that took place, that form the inventory transaction together. Each of
 	// these actions hold one slot in which one item was changed to another. In general, the combination of
 	// all of these actions results in a balanced inventory transaction. This should be checked to ensure that
@@ -193,6 +174,9 @@ type UseItemTransactionData struct {
 	// HotBarSlot is the hot bar slot that the player was holding while clicking the block. It should be used
 	// to ensure that the hot bar slot and held item are correctly synchronised with the server.
 	HotBarSlot int32
+	// Hand is the hand that the player used to interact with the block. It is one of the HandSlot constants
+	// above.
+	Hand byte
 	// HeldItem is the item that was held to interact with the block. The server should check if this item
 	// is actually present in the HotBarSlot.
 	HeldItem ItemInstance
@@ -271,6 +255,7 @@ func (data *UseItemTransactionData) Marshal(r IO) {
 	r.BlockPos(&data.BlockPosition)
 	IntegerFunc(&data.BlockFace, r.Uint8)
 	r.Varint32(&data.HotBarSlot)
+	r.Uint8(&data.Hand)
 	r.ItemInstance(&data.HeldItem)
 	r.Vec3(&data.Position)
 	r.Vec3(&data.ClickedPosition)
@@ -281,7 +266,7 @@ func (data *UseItemTransactionData) Marshal(r IO) {
 
 // Marshal ...
 func (data *UseItemOnEntityTransactionData) Marshal(r IO) {
-	r.Varuint64(&data.TargetEntityRuntimeID)
+	r.ActorRuntimeID(&data.TargetEntityRuntimeID)
 	r.Varint32(&data.ActionType)
 	r.Varint32(&data.HotBarSlot)
 	r.ItemInstance(&data.HeldItem)

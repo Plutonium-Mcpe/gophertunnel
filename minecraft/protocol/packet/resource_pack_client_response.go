@@ -16,7 +16,7 @@ const (
 // and set.
 type ResourcePackClientResponse struct {
 	// Response is the response type of the response. It is one of the constants found above.
-	Response byte
+	Response uint32
 	// PacksToDownload is a list of resource pack UUIDs combined with their version that need to be downloaded
 	// (for example SomePack_1.0.0), if the Response field is PackResponseSendPacks.
 	PacksToDownload []string
@@ -28,16 +28,12 @@ func (*ResourcePackClientResponse) ID() uint32 {
 }
 
 func (pk *ResourcePackClientResponse) Marshal(io protocol.IO) {
-	response := uint32(pk.Response)
-	io.Varuint32(&response)
-	if response > uint32(PackResponseCompleted) {
-		io.UnknownEnumOption(response, "resource pack response")
+	io.Varuint32(&pk.Response)
+	name, ok := resourcePackResponseToString(pk.Response)
+	if !ok {
+		io.UnknownEnumOption(pk.Response, "resource pack response")
+		return
 	}
-	pk.Response = byte(response)
-
-	// A varuint32 length-prefixed string follows the response. Its contents are ignored by the client,
-	// so we write the readable name of the response for parity and discard whatever is read.
-	name := resourcePackResponseToString(pk.Response)
 	io.String(&name)
 
 	if pk.Response == PackResponseSendPacks {
@@ -45,17 +41,10 @@ func (pk *ResourcePackClientResponse) Marshal(io protocol.IO) {
 	}
 }
 
-func resourcePackResponseToString(x uint8) string {
-	switch x {
-	case PackResponseRefused:
-		return "cancel"
-	case PackResponseSendPacks:
-		return "downloading"
-	case PackResponseAllPacksDownloaded:
-		return "downloadingfinished"
-	case PackResponseCompleted:
-		return "resourcepackstackfinished"
-	default:
-		return "unknown"
+func resourcePackResponseToString(x uint32) (string, bool) {
+	names := [...]string{"cancel", "downloading", "downloadingfinished", "resourcepackstackfinished"}
+	if x >= uint32(len(names)) {
+		return "", false
 	}
+	return names[x], true
 }

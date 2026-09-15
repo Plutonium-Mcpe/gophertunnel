@@ -63,8 +63,7 @@ type Skin struct {
 	CapeID string
 	// FullID is an ID that represents the skin in full. The actual functionality is unknown: The client
 	// does not seem to send a value for this.
-	FullID string
-	// SkinColour is a hex representation (including #) of the base colour of the skin.
+	FullID     string
 	SkinColour color.RGBA
 	// ArmSize is the size of the arms of the player's model. This is one of the ArmSize constants above.
 	ArmSize uint8
@@ -251,7 +250,9 @@ type PersonaPieceTintColour struct {
 func (x *PersonaPieceTintColour) Marshal(r IO) {
 	wireType := personaPieceTintWireType(x.PieceType)
 	r.String(&wireType)
-	x.PieceType = personaPieceTintLoginType(wireType)
+	if wireType != personaPieceTintWireType(x.PieceType) {
+		x.PieceType = personaPieceTintLoginType(wireType)
+	}
 	for i := range x.Colours {
 		r.BEARGB(&x.Colours[i])
 	}

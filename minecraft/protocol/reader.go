@@ -133,17 +133,15 @@ func (r *Reader) BlockPos(x *BlockPos) {
 	r.Varint32(&x[2])
 }
 
-// ChunkPos writes a ChunkPos as 2 varint32s to the underlying buffer.
 func (r *Reader) ChunkPos(x *ChunkPos) {
 	r.Varint32(&x[0])
 	r.Varint32(&x[1])
 }
 
-// SubChunkPos writes a SubChunkPos as 3 varint32s to the underlying buffer.
 func (r *Reader) SubChunkPos(x *SubChunkPos) {
-	r.Varint32(&x[0])
-	r.Varint32(&x[1])
-	r.Varint32(&x[2])
+	r.Int32(&x[0])
+	r.Int32(&x[1])
+	r.Int32(&x[2])
 }
 
 // SoundPos reads an mgl32.Vec3 that serves as a position for a sound.
@@ -185,18 +183,6 @@ func (r *Reader) RGBA(x *color.RGBA) {
 	}
 }
 
-// ARGB reads a color.ARGB x from a int32.
-func (r *Reader) ARGB(x *color.RGBA) {
-	var v int32
-	r.Int32(&v)
-	*x = color.RGBA{
-		A: byte(v),
-		R: byte(v >> 8),
-		G: byte(v >> 16),
-		B: byte(v >> 24),
-	}
-}
-
 // BEARGB reads a color.ARGB x from a big endian int32.
 func (r *Reader) BEARGB(x *color.RGBA) {
 	var v int32
@@ -206,18 +192,6 @@ func (r *Reader) BEARGB(x *color.RGBA) {
 		R: byte(v >> 8),
 		G: byte(v >> 16),
 		B: byte(v >> 24),
-	}
-}
-
-// VarRGBA reads a color.RGBA x from a varuint32.
-func (r *Reader) VarRGBA(x *color.RGBA) {
-	var v uint32
-	r.Varuint32(&v)
-	*x = color.RGBA{
-		R: byte(v),
-		G: byte(v >> 8),
-		B: byte(v >> 16),
-		A: byte(v >> 24),
 	}
 }
 
@@ -268,22 +242,10 @@ func (r *Reader) UUID(x *uuid.UUID) {
 // PlayerInventoryAction reads a PlayerInventoryAction.
 func (r *Reader) PlayerInventoryAction(x *UseItemTransactionData) {
 	r.Varint32(&x.LegacyRequestID)
-	var legacySlotsPresent bool
-	r.Bool(&legacySlotsPresent)
-	expectsLegacySlots := x.LegacyRequestID < -1 && (x.LegacyRequestID&1) == 0
-	if legacySlotsPresent != expectsLegacySlots {
-		r.InvalidValue(legacySlotsPresent, "legacy set item slots presence", "does not match legacy request ID")
-	}
-	if legacySlotsPresent {
-		Slice(r, &x.LegacySetItemSlots)
-	} else {
-		x.LegacySetItemSlots = nil
-	}
-	var actions Optional[[]InventoryAction]
-	DoubleOptionalFunc(r, &actions, func(actions *[]InventoryAction) {
-		Slice(r, actions)
+	OptionalFunc(r, &x.LegacySetItemSlots, func(slots *[]LegacySetItemSlot) {
+		Slice(r, slots)
 	})
-	x.Actions, _ = actions.Value()
+	Slice(r, &x.Actions)
 	IntegerFunc(&x.ActionType, r.Varint32)
 	IntegerFunc(&x.TriggerType, r.Uint8)
 	r.BlockPos(&x.BlockPosition)
@@ -439,9 +401,7 @@ func (r *Reader) ItemInstance(i *ItemInstance) {
 		i.StackNetworkID = 0
 	}
 
-	var runtimeID uint32
-	r.Varuint32(&runtimeID)
-	x.BlockRuntimeID = int32(runtimeID)
+	IntegerFunc(&x.BlockRuntimeID, r.Varuint32)
 	data := r.itemUserData(x.NetworkID == r.shieldID)
 	x.NBTData, x.CanBePlacedOn, x.CanBreak, x.BlockingTick = data.nbtData, data.canBePlacedOn, data.canBreak, data.blockingTick
 }
@@ -463,9 +423,6 @@ func (r *Reader) StackRequestItem(x *StackRequestItem) {
 	r.Varuint32(&variant)
 	var legacyVariant uint8
 	r.Uint8(&legacyVariant)
-	if variant != uint32(legacyVariant) {
-		r.InvalidValue(legacyVariant, "legacy stack request item descriptor", "does not match Cereal descriptor variant")
-	}
 	hasItem := variant == ItemDescriptorDefault
 	if variant != ItemDescriptorInvalid && !hasItem {
 		r.UnknownEnumOption(variant, "stack request item descriptor")
@@ -473,17 +430,13 @@ func (r *Reader) StackRequestItem(x *StackRequestItem) {
 	}
 	if hasItem {
 		r.String(&x.Identifier)
-		var metadata int32
-		r.Varint32(&metadata)
-		x.MetadataValue = uint32(metadata)
+		IntegerFunc(&x.MetadataValue, r.Varint32)
 	} else {
 		x.Identifier = ""
 		x.MetadataValue = 0
 	}
 	IntegerFunc(&x.Count, r.Int16)
-	var runtimeID uint32
-	r.Varuint32(&runtimeID)
-	x.BlockRuntimeID = int32(runtimeID)
+	IntegerFunc(&x.BlockRuntimeID, r.Varuint32)
 	data := r.itemUserData(x.Identifier == "minecraft:shield")
 	x.NBTData, x.CanBePlacedOn, x.CanBreak, x.BlockingTick = data.nbtData, data.canBePlacedOn, data.canBreak, data.blockingTick
 }
@@ -525,11 +478,15 @@ func (r *Reader) itemUserData(shield bool) itemUserData {
 func (r *Reader) StackRequestAction(x *StackRequestAction) {
 	var variant uint32
 	r.Varuint32(&variant)
-	var id uint8
-	r.Uint8(&id)
-	if stackRequestActionVariant(id) != variant {
-		r.InvalidValue(id, "stack request action type", "does not match the variant it was sent under")
+	var legacyID uint8
+	r.Uint8(&legacyID)
+	if variant > stackRequestActionVariant(StackRequestActionCraftResultsDeprecated) {
+		r.UnknownEnumOption(variant, "stack request action variant")
 		return
+	}
+	id := uint8(variant)
+	if variant >= uint32(StackRequestActionPlaceInContainer) {
+		id += 2
 	}
 	if !lookupStackRequestAction(id, x) {
 		r.UnknownEnumOption(id, "stack request action type")
@@ -629,6 +586,10 @@ func (r *Reader) PackSetting(x *PackSetting) {
 		var v string
 		r.String(&v)
 		x.Value = v
+	case PackSettingTypeStringList:
+		var v []string
+		FuncSlice(r, &v, r.String)
+		x.Value = v
 	default:
 		r.UnknownEnumOption(t, "pack setting")
 	}
@@ -704,6 +665,41 @@ func (r *Reader) Varint64(x *int64) {
 		}
 	}
 	r.panic(errVarIntOverflow)
+}
+
+// ActorRuntimeID reads an entity runtime ID encoded as an unsigned varint.
+func (r *Reader) ActorRuntimeID(x *uint64) {
+	r.Varuint64(x)
+}
+
+// ActorRuntimeIDVarint64 reads an entity runtime ID encoded as a signed varint.
+func (r *Reader) ActorRuntimeIDVarint64(x *int64) {
+	r.Varint64(x)
+}
+
+// ActorRuntimeIDVaruint32 reads an entity runtime ID encoded as an unsigned 32-bit varint.
+func (r *Reader) ActorRuntimeIDVaruint32(x *uint32) {
+	r.Varuint32(x)
+}
+
+// ActorUniqueID reads an entity unique ID encoded as a signed varint.
+func (r *Reader) ActorUniqueID(x *int64) {
+	r.Varint64(x)
+}
+
+// ActorUniqueIDInt64 reads an entity unique ID encoded as a fixed-width signed integer.
+func (r *Reader) ActorUniqueIDInt64(x *int64) {
+	r.Int64(x)
+}
+
+// ActorUniqueIDUint64 reads an entity unique ID encoded as a fixed-width unsigned integer.
+func (r *Reader) ActorUniqueIDUint64(x *uint64) {
+	r.Uint64(x)
+}
+
+// ActorUniqueIDVaruint64 reads an entity unique ID encoded as an unsigned varint.
+func (r *Reader) ActorUniqueIDVaruint64(x *uint64) {
+	r.Varuint64(x)
 }
 
 // Varuint64 reads up to 10 bytes from the underlying buffer into a uint64.
