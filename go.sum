@@ -1,5 +1,5 @@
-github.com/Plutonium-Mcpe/go-raknet v0.0.0-20260722074915-1f9d5d1c5d04 h1:W9zIBXUhXInIaTH0Fby34m/Y4laMtNgzXTIhcVh1rJg=
-github.com/Plutonium-Mcpe/go-raknet v0.0.0-20260722074915-1f9d5d1c5d04/go.mod h1:/yysjwfCXm2+2OY8mBazLzcxJ3irnylKCyG3FLgUPVU=
+github.com/Plutonium-Mcpe/go-raknet v0.0.0-20261006203556-fb1d24c6f8dd h1:SJ/ZheBC3StiRagxggTXwbSR1aAN5AMUSYz4QiesBjg=
+github.com/Plutonium-Mcpe/go-raknet v0.0.0-20261006203556-fb1d24c6f8dd/go.mod h1:/yysjwfCXm2+2OY8mBazLzcxJ3irnylKCyG3FLgUPVU=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/coreos/go-oidc/v3 v3.17.0 h1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=

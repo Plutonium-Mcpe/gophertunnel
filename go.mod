@@ -45,4 +45,4 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 )
 
-replace github.com/sandertv/go-raknet => github.com/Plutonium-Mcpe/go-raknet v0.0.0-20260722074915-1f9d5d1c5d04
+replace github.com/sandertv/go-raknet => github.com/Plutonium-Mcpe/go-raknet v0.0.0-20261006203556-fb1d24c6f8dd

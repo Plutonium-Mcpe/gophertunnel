@@ -79,8 +79,6 @@ func (x *RecipeUnlockRequirement) Marshal(r IO) {
 	r.Bool(&present)
 	if present {
 		FuncSlice(r, &x.Ingredients, r.ItemDescriptorCount)
-	} else {
-		x.Ingredients = nil
 	}
 }
 

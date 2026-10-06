@@ -24,6 +24,8 @@ func (r RakNet) PingContext(ctx context.Context, address string) (response []byt
 
 // Listen ...
 func (r RakNet) Listen(address string) (NetworkListener, error) {
+	// Capping the MTU keeps every packet inside a single IP datagram on mobile paths, where a
+	// smaller path MTU otherwise causes fragmentation and connection failures.
 	return raknet.ListenConfig{ErrorLog: r.l.With("net origin", "raknet"), MaxMTU: 1400}.Listen(address)
 }
 
