@@ -161,10 +161,12 @@ type Conn struct {
 	// most recent one. They describe what the remote side was still doing when a login step timed out.
 	received     atomic.Uint64
 	lastPacketID atomic.Uint32
-	// chunkRadiusRequests and initialisedPackets count the two packets the spawn sequence waits on, so a
-	// timeout can say which of them the client never sent.
+	// chunkRadiusRequests and initialisedPackets count the two packets the spawn sequence waits on, and
+	// spawnWaitFrom marks the packet count reached when the start game sequence went out, so a timeout can
+	// say which of them the client never sent.
 	chunkRadiusRequests atomic.Uint64
 	initialisedPackets  atomic.Uint64
+	spawnWaitFrom       atomic.Uint64
 
 	// expectedIDs is a slice of packet identifiers that are next expected to arrive, until the connection is
 	// logged in.
@@ -324,6 +326,18 @@ func (conn *Conn) StartGameTimeout(data GameData, timeout time.Duration) error {
 // be used to spawn the player in the world of the server. To spawn a Conn obtained from a call to
 // minecraft.Dial(), use Conn.DoSpawn().
 func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
+	if err := conn.SendGameData(data); err != nil {
+		return err
+	}
+	return conn.AwaitSpawn(ctx)
+}
+
+// SendGameData writes the start game sequence to the client without waiting for it to spawn, so that a
+// caller still holding back packets the client needs in order to spawn, such as a proxy queueing the
+// server's chunks, can release them before blocking in AwaitSpawn. A client that waits for the terrain
+// around its spawn point before reporting itself initialised never gets there otherwise.
+// SendGameData should be called for a Conn obtained using a minecraft.Listener.
+func (conn *Conn) SendGameData(data GameData) error {
 	if conn.gameDataReceived.Load() {
 		panic("(*Conn).StartGame must only be called on Listener connections")
 	}
@@ -339,14 +353,21 @@ func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
 	}
 	conn.waitingForSpawn.Store(true)
 	conn.startGame()
+	conn.spawnWaitFrom.Store(conn.received.Load())
 
 	if early := conn.earlyChunkRadius.Swap(nil); early != nil {
 		if err := conn.handle(early); err != nil {
 			return conn.wrap(fmt.Errorf("replay early request_chunk_radius: %w", err), "start game")
 		}
 	}
+	return nil
+}
 
-	before, radiusBefore, initBefore := conn.received.Load(), conn.chunkRadiusRequests.Load(), conn.initialisedPackets.Load()
+// AwaitSpawn blocks until the client completed the spawn sequence started by SendGameData, returning an
+// error if the context is closed first.
+func (conn *Conn) AwaitSpawn(ctx context.Context) error {
+	before := conn.spawnWaitFrom.Load()
+	radiusBefore, initBefore := conn.chunkRadiusRequests.Load(), conn.initialisedPackets.Load()
 	select {
 	case <-conn.ctx.Done():
 		return conn.closeErr("start game")
