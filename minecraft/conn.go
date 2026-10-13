@@ -157,6 +157,10 @@ type Conn struct {
 	// earlyChunkRadius holds a RequestChunkRadius received before the game data was sent. The client
 	// only sends it once, so without replaying it after StartGame the player never receives chunks.
 	earlyChunkRadius atomic.Pointer[packetData]
+	// received counts the packets read from the other side, and lastPacketID holds the identifier of the
+	// most recent one. They describe what the remote side was still doing when a login step timed out.
+	received     atomic.Uint64
+	lastPacketID atomic.Uint32
 
 	// expectedIDs is a slice of packet identifiers that are next expected to arrive, until the connection is
 	// logged in.
@@ -338,11 +342,13 @@ func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
 		}
 	}
 
+	before := conn.received.Load()
 	select {
 	case <-conn.ctx.Done():
 		return conn.closeErr("start game")
 	case <-ctx.Done():
-		return conn.wrap(ctx.Err(), "start game")
+		return conn.wrap(fmt.Errorf("%w (%v packets from client since start game, last ID %v)",
+			ctx.Err(), conn.received.Load()-before, conn.lastPacketID.Load()), "start game")
 	case <-conn.spawn:
 		// Conn was spawned successfully.
 		return nil
@@ -674,6 +680,8 @@ func (conn *Conn) receive(data []byte) error {
 	if err != nil {
 		return err
 	}
+	conn.received.Add(1)
+	conn.lastPacketID.Store(pkData.h.PacketID)
 	if pkData.h.PacketID == packet.IDDisconnect {
 		// We always handle disconnect packets and close the connection if one comes in.
 		pks, err := pkData.decode(conn)
