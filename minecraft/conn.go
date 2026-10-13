@@ -161,6 +161,10 @@ type Conn struct {
 	// most recent one. They describe what the remote side was still doing when a login step timed out.
 	received     atomic.Uint64
 	lastPacketID atomic.Uint32
+	// chunkRadiusRequests and initialisedPackets count the two packets the spawn sequence waits on, so a
+	// timeout can say which of them the client never sent.
+	chunkRadiusRequests atomic.Uint64
+	initialisedPackets  atomic.Uint64
 
 	// expectedIDs is a slice of packet identifiers that are next expected to arrive, until the connection is
 	// logged in.
@@ -342,13 +346,15 @@ func (conn *Conn) StartGameContext(ctx context.Context, data GameData) error {
 		}
 	}
 
-	before := conn.received.Load()
+	before, radiusBefore, initBefore := conn.received.Load(), conn.chunkRadiusRequests.Load(), conn.initialisedPackets.Load()
 	select {
 	case <-conn.ctx.Done():
 		return conn.closeErr("start game")
 	case <-ctx.Done():
-		return conn.wrap(fmt.Errorf("%w (%v packets from client since start game, last ID %v)",
-			ctx.Err(), conn.received.Load()-before, conn.lastPacketID.Load()), "start game")
+		return conn.wrap(fmt.Errorf("%w (%v packets from client since start game, last ID %v; request_chunk_radius %v before/%v after, set_local_player_as_initialised %v before/%v after)",
+			ctx.Err(), conn.received.Load()-before, conn.lastPacketID.Load(),
+			radiusBefore, conn.chunkRadiusRequests.Load()-radiusBefore,
+			initBefore, conn.initialisedPackets.Load()-initBefore), "start game")
 	case <-conn.spawn:
 		// Conn was spawned successfully.
 		return nil
@@ -682,6 +688,12 @@ func (conn *Conn) receive(data []byte) error {
 	}
 	conn.received.Add(1)
 	conn.lastPacketID.Store(pkData.h.PacketID)
+	switch pkData.h.PacketID {
+	case packet.IDRequestChunkRadius:
+		conn.chunkRadiusRequests.Add(1)
+	case packet.IDSetLocalPlayerAsInitialised:
+		conn.initialisedPackets.Add(1)
+	}
 	if pkData.h.PacketID == packet.IDDisconnect {
 		// We always handle disconnect packets and close the connection if one comes in.
 		pks, err := pkData.decode(conn)

@@ -63,7 +63,13 @@ func TestStartGameTimeoutReportsClientActivity(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected a deadline error, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "0 packets from client since start game") {
-		t.Fatalf("expected the error to report the silent client, got %v", err)
+	for _, want := range []string{
+		"0 packets from client since start game",
+		"request_chunk_radius 0 before/0 after",
+		"set_local_player_as_initialised 0 before/0 after",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected the error to contain %q, got %v", want, err)
+		}
 	}
 }
