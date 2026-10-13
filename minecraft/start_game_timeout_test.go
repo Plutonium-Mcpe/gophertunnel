@@ -73,3 +73,27 @@ func TestStartGameTimeoutReportsClientActivity(t *testing.T) {
 		}
 	}
 }
+
+// TestSendGameDataDoesNotWaitForSpawn asserts the start game sequence can be written without blocking on the
+// client, so a caller may release the packets the client needs to spawn before it waits for it.
+func TestSendGameDataDoesNotWaitForSpawn(t *testing.T) {
+	conn := newTestConn(t, newBlackholeConn())
+
+	done := make(chan error, 1)
+	go func() { done <- conn.SendGameData(GameData{WorldName: "test"}) }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected the start game sequence to be written, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SendGameData blocked waiting for the client to spawn")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := conn.AwaitSpawn(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected AwaitSpawn to be the call that waits, got %v", err)
+	}
+}
