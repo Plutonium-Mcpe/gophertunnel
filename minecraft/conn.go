@@ -685,7 +685,13 @@ func (conn *Conn) receive(data []byte) error {
 	}
 	if conn.loggedIn && !conn.waitingForSpawn.Load() {
 		if pkData.h.PacketID == packet.IDRequestChunkRadius && !conn.gameDataReceived.Load() {
-			conn.earlyChunkRadius.Store(pkData)
+			// ensureOwned, sans quoi on retient un pkData qui pointe encore sur le tampon de lot
+			// recycle du decodeur. StartGame n'arrive qu'une fois la cible connectee, et le client
+			// continue d'emettre pendant ce temps : le tampon retenu est reecrit avant d'etre rejoue,
+			// et on repond au client un ChunkRadiusUpdated construit sur des octets quelconques. Il
+			// n'envoie alors jamais son SetLocalPlayerAsInitialised et reste fige sur l'ecran noir.
+			// Un clone distinct de celui pousse a l'utilisateur : chacun est decode de son cote.
+			conn.earlyChunkRadius.Store(pkData.ensureOwned())
 		}
 		select {
 		case <-conn.ctx.Done():
