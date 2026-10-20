@@ -49,6 +49,44 @@ type IdentityData struct {
 	// involving multiplayer tokens issued by the Minecraft service.
 	// Sometimes, PlayFabID is referred to Minecraft ID (MCID) or PFID in the game.
 	PlayFabID string `json:"-"`
+	// Signals holds what the server could verify about the login, for detecting clients that lie about their
+	// device. It is always computed by ParseRequest and never taken from the request itself.
+	Signals *LoginSignals `json:"loginSignals,omitempty"`
+}
+
+// LoginSignals describes the authentication material of a login request: the claims of the multiplayer token
+// that are otherwise dropped, and whether the legacy chain, which holds the Xbox Live title ID of the app the
+// player signed in with, was present and valid.
+type LoginSignals struct {
+	// AuthenticationType is the type declared by the client: 0 full, 1 guest, 2 self-signed.
+	AuthenticationType uint8 `json:"authenticationType"`
+	// TokenVerified is true if the multiplayer token was verified against the Minecraft authorization service.
+	TokenVerified bool `json:"tokenVerified"`
+	// IdentityProviderType, PlayFabTitleID, PlayFabID and PlayFabCreated are the ipt, tid, mid and pfcd claims.
+	IdentityProviderType string `json:"ipt,omitempty"`
+	PlayFabTitleID       string `json:"tid,omitempty"`
+	PlayFabID            string `json:"mid,omitempty"`
+	PlayFabCreated       string `json:"pfcd,omitempty"`
+	// AP is the undocumented ap claim, kept as sent.
+	AP any `json:"ap,omitempty"`
+	// PlayStationID and PlayStationName are the pid and pname claims, NintendoID and NintendoName the nid and
+	// nname claims. Their exact meaning is undocumented.
+	PlayStationID   string `json:"pid,omitempty"`
+	PlayStationName string `json:"pname,omitempty"`
+	NintendoID      string `json:"nid,omitempty"`
+	NintendoName    string `json:"nname,omitempty"`
+	// LegacyChainLength is the number of tokens in the legacy chain, 0 if absent.
+	LegacyChainLength int `json:"legacyChainLength"`
+	// LegacyChainValid is true if the legacy chain is signed by Mojang and not expired.
+	LegacyChainValid bool `json:"legacyChainValid"`
+	// LegacyXUIDMatches is true if the legacy chain belongs to the same Xbox Live account as the token.
+	LegacyXUIDMatches bool `json:"legacyXuidMatches"`
+	// LegacyKeyMatches is true if the legacy chain was issued for the key that signed the token's client data.
+	LegacyKeyMatches bool `json:"legacyKeyMatches"`
+	// LegacyTitleID is the title ID found in the legacy chain, whether it is valid or not.
+	LegacyTitleID string `json:"legacyTitleId,omitempty"`
+	// LegacyChainError is the reason the legacy chain could not be verified, if any.
+	LegacyChainError string `json:"legacyChainError,omitempty"`
 }
 
 // checkOfflineUsername is used to check if a username is valid for normal Minecraft client,

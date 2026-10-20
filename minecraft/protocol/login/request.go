@@ -102,6 +102,7 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 
 	var (
 		authenticated bool
+		signals       *LoginSignals
 		t             = time.Now()
 	)
 	switch {
@@ -124,15 +125,13 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 		}
 		iData = claims.identityData()
 		authenticated = iData.XUID != ""
+		signals = claims.signals(req.AuthenticationType, true)
+		signals.addLegacyChain(req.Certificate.Chain, iData.XUID, key, t)
 		// The OIDC token does not include the numerical XBL title ID (extraData.titleId) that is present in the
 		// legacy Mojang chain. If the chain is present and valid, we verify it and use its title ID so callers
 		// can keep using IdentityData.TitleID.
-		if authenticated && len(req.Certificate.Chain) > 0 {
-			if legacyID, _, legacyAuthed, err := parseLegacyChain(req.Certificate.Chain, t); err == nil && legacyAuthed {
-				if legacyID.TitleID != "" && legacyID.XUID == iData.XUID {
-					iData.TitleID = legacyID.TitleID
-				}
-			}
+		if authenticated && signals.LegacyChainValid && signals.LegacyXUIDMatches {
+			iData.TitleID = signals.LegacyTitleID
 		}
 		if err := iData.Validate(); err != nil {
 			return iData, cData, res, fmt.Errorf("validate identity data: %w", err)
@@ -151,6 +150,8 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 			return iData, cData, res, fmt.Errorf("parse cpk: %w", err)
 		}
 		iData = claims.identityData()
+		signals = claims.signals(req.AuthenticationType, false)
+		signals.addLegacyChain(req.Certificate.Chain, iData.XUID, key, t)
 		if err := iData.Validate(); err != nil {
 			return iData, cData, res, fmt.Errorf("validate identity data: %w", err)
 		}
@@ -160,7 +161,16 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 			return iData, cData, res, err
 		}
 		iData, key, authenticated = legacyID, legacyKey, legacyAuthed
+		signals = &LoginSignals{
+			AuthenticationType: req.AuthenticationType,
+			LegacyChainLength:  len(req.Certificate.Chain),
+			LegacyChainValid:   legacyAuthed,
+			LegacyXUIDMatches:  legacyAuthed,
+			LegacyKeyMatches:   legacyAuthed,
+			LegacyTitleID:      legacyID.TitleID,
+		}
 	}
+	iData.Signals = signals
 
 	if err := parseFullClaim(req.RawToken, key, &cData); err != nil {
 		return iData, cData, res, fmt.Errorf("parse client data: %w", err)
@@ -448,6 +458,51 @@ type tokenClaims struct {
 	// Identity is the UUID of the player. It is only set for offline logins where
 	// the UUID cannot be derived from the XUID.
 	Identity string `json:"leguuid,omitempty"`
+
+	PlayFabCreated  string `json:"pfcd,omitempty"`
+	AP              any    `json:"ap,omitempty"`
+	PlayStationID   string `json:"pid,omitempty"`
+	PlayStationName string `json:"pname,omitempty"`
+	NintendoID      string `json:"nid,omitempty"`
+	NintendoName    string `json:"nname,omitempty"`
+}
+
+// signals returns the LoginSignals of the claims, without the legacy chain part.
+func (tc tokenClaims) signals(authType uint8, verified bool) *LoginSignals {
+	return &LoginSignals{
+		AuthenticationType:   authType,
+		TokenVerified:        verified,
+		IdentityProviderType: tc.IdentityProviderType,
+		PlayFabTitleID:       tc.PlayFabTitleID,
+		PlayFabID:            tc.PlayFabID,
+		PlayFabCreated:       tc.PlayFabCreated,
+		AP:                   tc.AP,
+		PlayStationID:        tc.PlayStationID,
+		PlayStationName:      tc.PlayStationName,
+		NintendoID:           tc.NintendoID,
+		NintendoName:         tc.NintendoName,
+	}
+}
+
+// addLegacyChain fills the legacy chain part of the signals for a request authenticated with a token.
+func (s *LoginSignals) addLegacyChain(chain []string, xuid string, tokenKey *ecdsa.PublicKey, now time.Time) {
+	for _, token := range chain {
+		if token != "" {
+			s.LegacyChainLength++
+		}
+	}
+	if s.LegacyChainLength == 0 {
+		return
+	}
+	legacyID, legacyKey, legacyAuthed, err := parseLegacyChain(chain, now)
+	if err != nil {
+		s.LegacyChainError = err.Error()
+		return
+	}
+	s.LegacyTitleID = legacyID.TitleID
+	s.LegacyChainValid = legacyAuthed
+	s.LegacyXUIDMatches = legacyID.XUID != "" && legacyID.XUID == xuid
+	s.LegacyKeyMatches = legacyKey != nil && tokenKey != nil && legacyKey.Equal(tokenKey)
 }
 
 // identityData converts the OIDC tokenClaims into IdentityData.
