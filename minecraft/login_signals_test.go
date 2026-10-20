@@ -39,6 +39,9 @@ func TestLoginSignalsAreComputed(t *testing.T) {
 		if legacy {
 			wantLength = 1
 		}
+		if len(s.ClientDataKeys) < 20 || s.ClientDataKeys[0] == "" {
+			t.Fatalf("legacy=%v: client data keys %v", legacy, s.ClientDataKeys)
+		}
 		if s.LegacyChainLength != wantLength {
 			t.Fatalf("legacy=%v: chain length %v, want %v", legacy, s.LegacyChainLength, wantLength)
 		}

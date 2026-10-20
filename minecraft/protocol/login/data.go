@@ -87,6 +87,9 @@ type LoginSignals struct {
 	LegacyTitleID string `json:"legacyTitleId,omitempty"`
 	// LegacyChainError is the reason the legacy chain could not be verified, if any.
 	LegacyChainError string `json:"legacyChainError,omitempty"`
+	// ClientDataKeys holds the top-level keys of the client data in the order the client sent them. Each version
+	// of the game writes them in a fixed order, which third-party clients often do not reproduce.
+	ClientDataKeys []string `json:"clientDataKeys,omitempty"`
 }
 
 // checkOfflineUsername is used to check if a username is valid for normal Minecraft client,

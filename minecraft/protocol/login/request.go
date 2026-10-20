@@ -175,6 +175,9 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 	if err := parseFullClaim(req.RawToken, key, &cData); err != nil {
 		return iData, cData, res, fmt.Errorf("parse client data: %w", err)
 	}
+	if signals != nil {
+		signals.ClientDataKeys = topLevelKeys(req.RawToken)
+	}
 	if !strings.Contains(cData.ServerAddress, "://") && strings.Count(cData.ServerAddress, ":") > 1 && cData.ServerAddress[0] != '[' {
 		// IPv6: We can't net.ResolveUDPAddr this directly, because Mojang does
 		// not always put [] around the IP if it isn't added by the player in
@@ -593,4 +596,37 @@ func ParsePublicKey(b64Data string, key *ecdsa.PublicKey) error {
 func MarshalPublicKey(key *ecdsa.PublicKey) string {
 	data, _ := x509.MarshalPKIXPublicKey(key)
 	return base64.StdEncoding.EncodeToString(data)
+}
+
+// topLevelKeys returns the keys of the JSON object in the payload of a JWT, in order, or nil if it cannot be read.
+func topLevelKeys(token string) []string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return nil
+	}
+	var keys []string
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return nil
+		}
+		key, ok := t.(string)
+		if !ok {
+			return nil
+		}
+		keys = append(keys, key)
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil
+		}
+	}
+	return keys
 }
